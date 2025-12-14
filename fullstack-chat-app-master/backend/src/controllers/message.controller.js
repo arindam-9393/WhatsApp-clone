@@ -68,3 +68,66 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+// --- NEW FEATURES ---
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    
+    // Find message first
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    // Verify user is the sender (optional security check)
+    if (message.senderId.toString() !== req.user._id.toString()) {
+        return res.status(401).json({ message: "Unauthorized to delete this message" });
+    }
+
+    // Delete it
+    await Message.findByIdAndDelete(messageId);
+
+    // Notify the other user (real-time)
+    const receiverSocketId = getReceiverSocketId(message.receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageDeleted", messageId);
+    }
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    console.log("Error in deleteMessage:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const editMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { text } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    // Verify user is the sender
+    if (message.senderId.toString() !== req.user._id.toString()) {
+         return res.status(401).json({ message: "Unauthorized to edit this message" });
+    }
+
+    const updatedMessage = await Message.findByIdAndUpdate(
+      messageId,
+      { text },
+      { new: true }
+    );
+
+    // Notify the other user
+    const receiverSocketId = getReceiverSocketId(updatedMessage.receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageUpdated", updatedMessage);
+    }
+
+    res.status(200).json(updatedMessage);
+  } catch (error) {
+    console.log("Error in editMessage:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};

@@ -1,5 +1,4 @@
 import Navbar from "./components/Navbar";
-
 import HomePage from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
@@ -8,6 +7,7 @@ import ProfilePage from "./pages/ProfilePage";
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
+import { useChatStore } from "./store/useChatStore"; // <--- IMPORT THIS
 import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
 
@@ -17,14 +17,23 @@ import { Toaster } from "react-hot-toast";
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
   const { theme } = useThemeStore();
-
-  console.log({ onlineUsers });
+  
+  // 1. GET THE SUBSCRIBE FUNCTION
+  const { subscribeToMessages, unsubscribeFromMessages } = useChatStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  console.log({ authUser });
+  // 2. ADD THIS NEW EFFECT TO LISTEN GLOBALLY
+  useEffect(() => {
+    if (authUser) {
+      subscribeToMessages();
+    }
+    return () => {
+      unsubscribeFromMessages();
+    };
+  }, [authUser, subscribeToMessages, unsubscribeFromMessages]);
 
   if (isCheckingAuth && !authUser)
     return (
