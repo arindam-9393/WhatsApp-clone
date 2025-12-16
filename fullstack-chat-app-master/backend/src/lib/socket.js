@@ -11,12 +11,12 @@ const io = new Server(server, {
   },
 });
 
+// Helper function to find a specific user's socket
 export function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
 
-// used to store online users
-const userSocketMap = {}; // {userId: socketId}
+const userSocketMap = {}; // stores {userId: socketId}
 
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
@@ -24,8 +24,43 @@ io.on("connection", (socket) => {
   const userId = socket.handshake.query.userId;
   if (userId) userSocketMap[userId] = socket.id;
 
-  // io.emit() is used to send events to all the connected clients
+  // Send the list of online users to everyone
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+  // --- VIDEO CALL EVENTS ---
+
+  // 1. When User A calls User B
+  socket.on("callUser", (data) => {
+    const receiverSocketId = getReceiverSocketId(data.userToCall);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("callUser", { 
+        signal: data.signalData, 
+        from: data.from, 
+        name: data.name 
+      });
+    }
+  });
+
+  // 2. When User B answers
+  socket.on("answerCall", (data) => {
+    const callerSocketId = getReceiverSocketId(data.to);
+    if (callerSocketId) {
+        io.to(callerSocketId).emit("callAccepted", data.signal);
+    }
+  });
+
+  // ... existing callUser and answerCall ...
+
+  // 3. HANG UP EVENT
+  socket.on("endCall", (data) => {
+    // data.to is the ID of the person we are hanging up on
+    const receiverSocketId = getReceiverSocketId(data.to);
+    if (receiverSocketId) {
+        io.to(receiverSocketId).emit("callEnded");
+    }
+  });
+
+  // -------------------------
 
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.id);
